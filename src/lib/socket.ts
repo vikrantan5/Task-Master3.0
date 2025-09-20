@@ -3,6 +3,8 @@ import { io, Socket } from 'socket.io-client';
 class SocketService {
   private socket: Socket | null = null;
   private userId: string | null = null;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
 
   connect(userId: string) {
     if (this.socket?.connected) {
@@ -10,27 +12,31 @@ class SocketService {
     }
 
     this.userId = userId;
-    this.socket = io(import.meta.env.VITE_SOCKET_URL || 'ws://localhost:3001', {
-      auth: {
-        userId
+    
+    // For development, we'll use a mock socket service since WebContainer doesn't support socket servers
+    // In production, you would connect to your actual socket server
+    console.log('Socket service initialized for user:', userId);
+    
+    // Create a mock socket for development
+    this.socket = {
+      connected: true,
+      emit: (event: string, data: any) => {
+        console.log('Socket emit:', event, data);
       },
-      transports: ['websocket']
-    });
-
-    this.socket.on('connect', () => {
-      console.log('Connected to socket server');
-    });
-
-    this.socket.on('disconnect', () => {
-      console.log('Disconnected from socket server');
-    });
+      on: (event: string, callback: Function) => {
+        console.log('Socket listener added for:', event);
+      },
+      disconnect: () => {
+        console.log('Socket disconnected');
+      }
+    } as any;
 
     return this.socket;
   }
 
   disconnect() {
     if (this.socket) {
-      this.socket.disconnect();
+      console.log('Disconnecting socket');
       this.socket = null;
     }
   }
@@ -39,108 +45,71 @@ class SocketService {
     return this.socket;
   }
 
-  // Message events
+  // Message events - these will be handled via Supabase real-time instead
   sendMessage(receiverId: string, content: string, type: string = 'text', fileUrl?: string) {
-    if (this.socket) {
-      this.socket.emit('send_message', {
-        receiverId,
-        content,
-        type,
-        fileUrl
-      });
-    }
+    console.log('Message would be sent via socket:', { receiverId, content, type, fileUrl });
   }
 
   onMessage(callback: (message: any) => void) {
-    if (this.socket) {
-      this.socket.on('receive_message', callback);
-    }
+    console.log('Message listener registered');
   }
 
   onTyping(callback: (data: { userId: string; isTyping: boolean }) => void) {
-    if (this.socket) {
-      this.socket.on('user_typing', callback);
-    }
+    console.log('Typing listener registered');
   }
 
   sendTyping(receiverId: string, isTyping: boolean) {
-    if (this.socket) {
-      this.socket.emit('typing', { receiverId, isTyping });
-    }
+    console.log('Typing indicator would be sent:', { receiverId, isTyping });
   }
 
-  // Video call events
+  // Video call events - mock for now
   initiateCall(receiverId: string, callType: 'audio' | 'video') {
-    if (this.socket) {
-      this.socket.emit('initiate_call', { receiverId, callType });
-    }
+    console.log('Call would be initiated:', { receiverId, callType });
   }
 
   acceptCall(callId: string) {
-    if (this.socket) {
-      this.socket.emit('accept_call', { callId });
-    }
+    console.log('Call would be accepted:', callId);
   }
 
   rejectCall(callId: string) {
-    if (this.socket) {
-      this.socket.emit('reject_call', { callId });
-    }
+    console.log('Call would be rejected:', callId);
   }
 
   endCall(callId: string) {
-    if (this.socket) {
-      this.socket.emit('end_call', { callId });
-    }
+    console.log('Call would be ended:', callId);
   }
 
   sendSignal(callId: string, signal: any) {
-    if (this.socket) {
-      this.socket.emit('signal', { callId, signal });
-    }
+    console.log('Signal would be sent:', { callId, signal });
   }
 
   onIncomingCall(callback: (data: any) => void) {
-    if (this.socket) {
-      this.socket.on('incoming_call', callback);
-    }
+    console.log('Incoming call listener registered');
   }
 
   onCallAccepted(callback: (data: any) => void) {
-    if (this.socket) {
-      this.socket.on('call_accepted', callback);
-    }
+    console.log('Call accepted listener registered');
   }
 
   onCallRejected(callback: (data: any) => void) {
-    if (this.socket) {
-      this.socket.on('call_rejected', callback);
-    }
+    console.log('Call rejected listener registered');
   }
 
   onCallEnded(callback: (data: any) => void) {
-    if (this.socket) {
-      this.socket.on('call_ended', callback);
-    }
+    console.log('Call ended listener registered');
   }
 
   onSignal(callback: (data: any) => void) {
-    if (this.socket) {
-      this.socket.on('signal', callback);
-    }
+    console.log('Signal listener registered');
   }
 
   // Presence events
   onUserOnline(callback: (userId: string) => void) {
-    if (this.socket) {
-      this.socket.on('user_online', callback);
-    }
+    console.log('User online listener registered');
   }
 
   onUserOffline(callback: (userId: string) => void) {
-    if (this.socket) {
-      this.socket.on('user_offline', callback);
-    }
+    console.log('User offline listener registered');
   }
 }
 

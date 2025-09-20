@@ -9,29 +9,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Create storage bucket for file uploads
-export const createStorageBucket = async () => {
-  try {
-    // Check if bucket exists first
-    const { data: buckets } = await supabase.storage.listBuckets();
-    const bucketExists = buckets?.some(bucket => bucket.name === 'chat-files');
-    
-    if (!bucketExists) {
-      const { data, error } = await supabase.storage.createBucket('chat-files', {
-        public: true,
-        allowedMimeTypes: ['image/*', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
-        fileSizeLimit: 10485760 // 10MB
-      });
-      
-      if (error) {
-        console.warn('Storage bucket creation failed (may already exist):', error.message);
-      }
-    }
-  } catch (error) {
-    console.warn('Storage bucket setup failed:', error);
-  }
-};
-
 // Database types
 export interface Database {
   public: {

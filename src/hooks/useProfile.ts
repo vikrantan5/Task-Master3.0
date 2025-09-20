@@ -64,7 +64,7 @@ export const useProfile = () => {
 
     try {
       const username = user.user_metadata?.username || 'user_' + Math.random().toString(36).substr(2, 8);
-      const displayName = user.email?.split('@')[0] || 'User';
+      const displayName = user.user_metadata?.display_name || user.email?.split('@')[0] || 'User';
 
       const { data, error } = await supabase
         .from('profiles')
@@ -133,9 +133,12 @@ export const useProfile = () => {
         })
         .eq('user_id', user.id);
 
-      if (error) throw error;
+      if (error) {
+        console.warn('Error updating online status:', error);
+        // Don't throw error for online status updates
+      }
     } catch (error) {
-      console.error('Error updating online status:', error);
+      console.warn('Error updating online status:', error);
     }
   };
 

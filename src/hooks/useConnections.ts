@@ -31,7 +31,7 @@ export const useConnections = () => {
 
       if (!currentProfile) return;
 
-      // Fetch connections with profile data
+      // Fetch accepted connections with profile data
       const { data, error } = await supabase
         .from('connections')
         .select(`
@@ -69,7 +69,7 @@ export const useConnections = () => {
 
       setConnections(formattedConnections);
 
-      // Fetch pending requests
+      // Fetch pending requests (where current user is the receiver)
       const { data: pendingData, error: pendingError } = await supabase
         .from('connections')
         .select(`
@@ -121,6 +121,17 @@ export const useConnections = () => {
 
       if (!currentProfile) return;
 
+      // Check if connection already exists
+      const { data: existingConnection } = await supabase
+        .from('connections')
+        .select('id, status')
+        .or(`and(user1_id.eq.${currentProfile.id},user2_id.eq.${targetProfileId}),and(user1_id.eq.${targetProfileId},user2_id.eq.${currentProfile.id})`)
+        .maybeSingle();
+
+      if (existingConnection) {
+        throw new Error('Connection already exists');
+      }
+
       const { error } = await supabase
         .from('connections')
         .insert({
@@ -130,6 +141,9 @@ export const useConnections = () => {
         });
 
       if (error) throw error;
+      
+      // Refresh connections after sending request
+      await fetchConnections();
     } catch (error) {
       console.error('Error sending connection request:', error);
       throw error;
@@ -184,7 +198,7 @@ export const useConnections = () => {
         .from('connections')
         .select('status')
         .or(`and(user1_id.eq.${currentProfile.id},user2_id.eq.${targetProfileId}),and(user1_id.eq.${targetProfileId},user2_id.eq.${currentProfile.id})`)
-        .single();
+        .maybeSingle();
 
       if (error && error.code !== 'PGRST116') throw error;
 
@@ -198,6 +212,26 @@ export const useConnections = () => {
   useEffect(() => {
     if (user) {
       fetchConnections();
+
+      // Set up real-time subscription for connection updates
+      const channel = supabase
+        .channel('connections')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'connections'
+          },
+          () => {
+            fetchConnections();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [user]);
 

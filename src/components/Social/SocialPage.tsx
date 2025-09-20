@@ -18,29 +18,15 @@ const SocialPage: React.FC = () => {
   const { initializeCall } = useVideoCall();
 
   useEffect(() => {
-    // Initialize storage bucket
-    createStorageBucket().catch(console.warn);
-
     // Connect to socket when component mounts
     if (profile?.id) {
-      socketService.connect(profile.id);
       updateOnlineStatus(true);
-
-      // Set up presence listeners
-      socketService.onUserOnline((userId) => {
-        console.log('User came online:', userId);
-      });
-
-      socketService.onUserOffline((userId) => {
-        console.log('User went offline:', userId);
-      });
     }
 
     // Cleanup on unmount
     return () => {
       if (profile?.id) {
         updateOnlineStatus(false);
-        socketService.disconnect();
       }
     };
   }, [profile?.id]);

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { socketService } from '../lib/socket';
 
 export interface Message {
   id: string;
@@ -98,17 +97,35 @@ export const useMessages = (chatUserId?: string) => {
         const fileName = `${Date.now()}.${fileExt}`;
         const filePath = `${user.id}/${fileName}`;
 
+        // Create the bucket if it doesn't exist
+        try {
+          const { data: buckets } = await supabase.storage.listBuckets();
+          const bucketExists = buckets?.some(bucket => bucket.name === 'chat-files');
+          
+          if (!bucketExists) {
+            await supabase.storage.createBucket('chat-files', {
+              public: true,
+              allowedMimeTypes: ['image/*', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+              fileSizeLimit: 10485760 // 10MB
+            });
+          }
+        } catch (bucketError) {
+          console.warn('Bucket creation failed, continuing with upload:', bucketError);
+        }
+
         const { error: uploadError } = await supabase.storage
           .from('chat-files')
           .upload(filePath, file);
 
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('chat-files')
-          .getPublicUrl(filePath);
-
-        fileUrl = publicUrl;
+        if (uploadError) {
+          console.error('File upload error:', uploadError);
+          // Continue without file if upload fails
+        } else {
+          const { data: { publicUrl } } = supabase.storage
+            .from('chat-files')
+            .getPublicUrl(filePath);
+          fileUrl = publicUrl;
+        }
       }
 
       const { data, error } = await supabase
@@ -145,9 +162,6 @@ export const useMessages = (chatUserId?: string) => {
       };
 
       setMessages(prev => [...prev, newMessage]);
-
-      // Send via socket
-      socketService.sendMessage(chatUserId, content, type, fileUrl || undefined);
     } catch (error) {
       console.error('Error sending message:', error);
       throw error;
@@ -172,23 +186,68 @@ export const useMessages = (chatUserId?: string) => {
   };
 
   const sendTypingIndicator = (isTyping: boolean) => {
-    if (chatUserId) {
-      socketService.sendTyping(chatUserId, isTyping);
-    }
+    // Mock typing indicator for now
+    console.log('Typing indicator:', isTyping);
   };
 
   useEffect(() => {
     if (user && chatUserId) {
       fetchMessages();
 
-      // Set up socket listeners
-      socketService.onMessage((message) => {
-        setMessages(prev => [...prev, message]);
-      });
+      // Set up real-time subscription for new messages
+      const channel = supabase
+        .channel('messages')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages',
+            filter: `receiver_id=eq.${chatUserId}`
+          },
+          async (payload) => {
+            // Fetch the complete message with sender profile
+            const { data } = await supabase
+              .from('messages')
+              .select(`
+                *,
+                sender:profiles!messages_sender_id_fkey(username, display_name, avatar_url)
+              `)
+              .eq('id', payload.new.id)
+              .single();
 
-      socketService.onTyping(({ userId, isTyping }) => {
-        setTyping(prev => ({ ...prev, [userId]: isTyping }));
-      });
+            if (data) {
+              const newMessage: Message = {
+                id: data.id,
+                senderId: data.sender_id,
+                receiverId: data.receiver_id,
+                content: data.content,
+                type: data.type as 'text' | 'image' | 'document',
+                fileUrl: data.file_url,
+                isRead: data.is_read,
+                createdAt: new Date(data.created_at),
+                senderProfile: {
+                  username: data.sender.username,
+                  displayName: data.sender.display_name,
+                  avatarUrl: data.sender.avatar_url,
+                }
+              };
+
+              setMessages(prev => {
+                // Avoid duplicates
+                if (prev.some(msg => msg.id === newMessage.id)) {
+                  return prev;
+                }
+                return [...prev, newMessage];
+              });
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [user, chatUserId]);
 

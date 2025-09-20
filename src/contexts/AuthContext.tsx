@@ -46,9 +46,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, []);
 
-  // const signUp = async (email: string, password: string) => {
-  // }
-  
   const signUp = async (email: string, password: string, username?: string) => {
     // Use provided username or generate one
     const finalUsername = username || 'user_' + Math.random().toString(36).substr(2, 8);

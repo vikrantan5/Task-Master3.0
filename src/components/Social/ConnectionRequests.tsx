@@ -62,17 +62,19 @@ const ConnectionRequests: React.FC = () => {
             <div className="flex gap-2">
               <button
                 onClick={() => acceptConnectionRequest(request.id)}
+                disabled={loading}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
               >
                 <UserCheck className="w-4 h-4" />
-                Accept
+                {loading ? 'Processing...' : 'Accept'}
               </button>
               <button
                 onClick={() => rejectConnectionRequest(request.id)}
+                disabled={loading}
                 className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
               >
                 <UserX className="w-4 h-4" />
-                Reject
+                {loading ? 'Processing...' : 'Reject'}
               </button>
             </div>
           </div>
