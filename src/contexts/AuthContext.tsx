@@ -47,33 +47,69 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signUp = async (email: string, password: string, username?: string) => {
-    // Use provided username or generate one
-    const finalUsername = username || 'user_' + Math.random().toString(36).substr(2, 8);
-    
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          username: finalUsername,
-          display_name: email.split('@')[0]
+    try {
+      // Validate inputs
+      if (!email || !password) {
+        return { error: { message: 'Email and password are required' } as AuthError };
+      }
+      
+      if (password.length < 6) {
+        return { error: { message: 'Password must be at least 6 characters long' } as AuthError };
+      }
+      
+      // Clean and validate username
+      let finalUsername = username;
+      if (finalUsername) {
+        finalUsername = finalUsername.toLowerCase().replace(/[^a-z0-9_]/g, '');
+        if (finalUsername.length < 3 || finalUsername.length > 20) {
+          return { error: { message: 'Username must be 3-20 characters, letters, numbers, and underscores only' } as AuthError };
         }
       }
-    });
-    return { error };
+    
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            username: finalUsername,
+            display_name: email.split('@')[0]
+          }
+        }
+      });
+      
+      return { error };
+    } catch (err) {
+      console.error('Sign up error:', err);
+      return { error: { message: 'An unexpected error occurred during sign up' } as AuthError };
+    }
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error };
+    try {
+      if (!email || !password) {
+        return { error: { message: 'Email and password are required' } as AuthError };
+      }
+      
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      
+      return { error };
+    } catch (err) {
+      console.error('Sign in error:', err);
+      return { error: { message: 'An unexpected error occurred during sign in' } as AuthError };
+    }
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    return { error };
+    try {
+      const { error } = await supabase.auth.signOut();
+      return { error };
+    } catch (err) {
+      console.error('Sign out error:', err);
+      return { error: { message: 'An unexpected error occurred during sign out' } as AuthError };
+    }
   };
 
   const value = {

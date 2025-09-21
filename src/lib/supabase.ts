@@ -7,7 +7,58 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10
+    }
+  }
+});
+
+// Helper function to create storage bucket if it doesn't exist
+export const createStorageBucket = async (bucketName: string) => {
+  try {
+    const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+    
+    if (listError) {
+      console.warn('Could not list buckets:', listError.message);
+      return;
+    }
+    
+    const bucketExists = buckets?.some(bucket => bucket.name === bucketName);
+    
+    if (!bucketExists) {
+      const { error: createError } = await supabase.storage.createBucket(bucketName, {
+        public: true,
+        allowedMimeTypes: [
+          'image/jpeg',
+          'image/png', 
+          'image/gif',
+          'image/webp',
+          'application/pdf',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'text/plain'
+        ],
+        fileSizeLimit: 10485760 // 10MB
+      });
+      
+      if (createError) {
+        console.warn('Could not create bucket:', createError.message);
+      }
+    }
+  } catch (error) {
+    console.warn('Storage bucket setup error:', error);
+  }
+};
+
+// Initialize storage on module load
+createStorageBucket('chat-files');
 
 // Database types
 export interface Database {

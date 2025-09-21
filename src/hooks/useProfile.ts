@@ -63,7 +63,15 @@ export const useProfile = () => {
     if (!user) return;
 
     try {
-      const username = user.user_metadata?.username || 'user_' + Math.random().toString(36).substr(2, 8);
+      // Generate a safe username
+      let username = user.user_metadata?.username;
+      if (!username) {
+        const emailPrefix = user.email?.split('@')[0] || 'user';
+        const cleanPrefix = emailPrefix.toLowerCase().replace(/[^a-z0-9_]/g, '');
+        const randomSuffix = Math.random().toString(36).substr(2, 4);
+        username = `${cleanPrefix}_${randomSuffix}`.substring(0, 20);
+      }
+      
       const displayName = user.user_metadata?.display_name || user.email?.split('@')[0] || 'User';
 
       const { data, error } = await supabase
