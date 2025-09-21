@@ -97,20 +97,21 @@ export const useMessages = (chatUserId?: string) => {
         const fileName = `${Date.now()}.${fileExt}`;
         const filePath = `${user.id}/${fileName}`;
 
-        // Create the bucket if it doesn't exist
-        try {
-          const { data: buckets } = await supabase.storage.listBuckets();
-          const bucketExists = buckets?.some(bucket => bucket.name === 'chat-files');
-          
-          if (!bucketExists) {
-            await supabase.storage.createBucket('chat-files', {
-              public: true,
-              allowedMimeTypes: ['image/*', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
-              fileSizeLimit: 10485760 // 10MB
-            });
-          }
-        } catch (bucketError) {
-          console.warn('Bucket creation failed, continuing with upload:', bucketError);
+        // Validate file size (10MB limit)
+        if (file.size > 10485760) {
+          throw new Error('File size must be less than 10MB');
+        }
+        
+        // Validate file type
+        const allowedTypes = [
+          'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+          'application/pdf', 'application/msword', 
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'text/plain'
+        ];
+        
+        if (!allowedTypes.includes(file.type)) {
+          throw new Error('File type not supported');
         }
 
         const { error: uploadError } = await supabase.storage
@@ -118,8 +119,7 @@ export const useMessages = (chatUserId?: string) => {
           .upload(filePath, file);
 
         if (uploadError) {
-          console.error('File upload error:', uploadError);
-          // Continue without file if upload fails
+          throw new Error(`File upload failed: ${uploadError.message}`);
         } else {
           const { data: { publicUrl } } = supabase.storage
             .from('chat-files')

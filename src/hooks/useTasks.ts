@@ -192,58 +192,55 @@ export const useTasks = () => {
     const dateStr = format(date, 'yyyy-MM-dd');
     
     try {
-      // Get tasks for the day
-      const { data: tasks, error: tasksError } = await supabase
-        .from('tasks')
-        .select('id, completed, created_at')
-        .eq('user_id', user.id)
-        .lte('created_at', `${dateStr}T23:59:59.999Z`);
-
-      if (tasksError) throw tasksError;
-
-      // Get task completions for the day
-      const { data: completions, error: completionsError } = await supabase
-        .from('task_completions')
-        .select('task_id')
-        .eq('user_id', user.id)
-        .eq('completed_date', dateStr);
-
-      if (completionsError) throw completionsError;
-
-      // Get notes created on this day
-      const { data: notes, error: notesError } = await supabase
-        .from('notes')
-        .select('id')
-        .eq('user_id', user.id)
-        .gte('created_at', `${dateStr}T00:00:00.000Z`)
-        .lte('created_at', `${dateStr}T23:59:59.999Z`);
-
-      if (notesError) throw notesError;
-
-      const totalTasks = tasks?.length || 0;
-      const completedTasks = completions?.length || 0;
-      const completionRate = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
-      const notesCreated = notes?.length || 0;
+      // Use the database function for safer analytics generation
+      const { error } = await supabase.rpc('generate_daily_analytics', {
+        target_user_id: user.id,
+        target_date: dateStr
+      });
       
-      // Calculate productivity score (weighted average)
-      const productivityScore = (completionRate * 0.7) + (notesCreated * 5 * 0.3);
+      if (error) {
+        console.warn('Analytics generation failed, falling back to manual calculation:', error.message);
+        
+        // Fallback to manual calculation
+        const { data: tasks } = await supabase
+          .from('tasks')
+          .select('id')
+          .eq('user_id', user.id)
+          .lte('created_at', `${dateStr}T23:59:59.999Z`);
 
-      // Use upsert to handle duplicate key constraint
-      const { error: upsertError } = await supabase
-        .from('daily_analytics')
-        .upsert({
-          user_id: user.id,
-          date: dateStr,
-          total_tasks: totalTasks,
-          completed_tasks: completedTasks,
-          completion_rate: Math.round(completionRate * 100) / 100,
-          notes_created: notesCreated,
-          productivity_score: Math.round(productivityScore * 100) / 100,
-        }, {
-          onConflict: 'user_id,date'
-        });
+        const { data: completions } = await supabase
+          .from('task_completions')
+          .select('task_id')
+          .eq('user_id', user.id)
+          .eq('completed_date', dateStr);
 
-      if (upsertError) throw upsertError;
+        const { data: notes } = await supabase
+          .from('notes')
+          .select('id')
+          .eq('user_id', user.id)
+          .gte('created_at', `${dateStr}T00:00:00.000Z`)
+          .lte('created_at', `${dateStr}T23:59:59.999Z`);
+
+        const totalTasks = tasks?.length || 0;
+        const completedTasks = completions?.length || 0;
+        const completionRate = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+        const notesCreated = notes?.length || 0;
+        const productivityScore = (completionRate * 0.7) + (Math.min(notesCreated * 5, 30) * 0.3);
+
+        await supabase
+          .from('daily_analytics')
+          .upsert({
+            user_id: user.id,
+            date: dateStr,
+            total_tasks: totalTasks,
+            completed_tasks: completedTasks,
+            completion_rate: Math.round(completionRate * 100) / 100,
+            notes_created: notesCreated,
+            productivity_score: Math.round(productivityScore * 100) / 100,
+          }, {
+            onConflict: 'user_id,date'
+          });
+      }
     } catch (error) {
       console.error('Error generating daily analytics:', error);
     }
