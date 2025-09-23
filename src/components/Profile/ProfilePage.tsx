@@ -1,9 +1,13 @@
 import React from 'react';
-import { User, Mail, Calendar, LogOut } from 'lucide-react';
+import { User, Mail, Calendar, LogOut, Camera, Trash2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useProfile } from '../../hooks/useProfile';
+import { useProfilePicture } from '../../hooks/useProfilePicture';
 
 const ProfilePage: React.FC = () => {
   const { user, signOut } = useAuth();
+  const { profile, refreshProfile } = useProfile();
+  const { uploadProfilePicture, deleteProfilePicture, uploading } = useProfilePicture();
 
   const handleSignOut = async () => {
     await signOut();
@@ -17,6 +21,31 @@ const ProfilePage: React.FC = () => {
       month: 'long',
       day: 'numeric',
     });
+  };
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      await uploadProfilePicture(file);
+      await refreshProfile();
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      alert('Failed to upload profile picture. Please try again.');
+    }
+  };
+
+  const handleAvatarDelete = async () => {
+    if (!confirm('Are you sure you want to delete your profile picture?')) return;
+
+    try {
+      await deleteProfilePicture();
+      await refreshProfile();
+    } catch (error) {
+      console.error('Error deleting avatar:', error);
+      alert('Failed to delete profile picture. Please try again.');
+    }
   };
 
   return (
@@ -35,17 +64,62 @@ const ProfilePage: React.FC = () => {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
             {/* Profile Header */}
             <div className="flex flex-col sm:flex-row items-center gap-6 mb-8">
-              <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center">
-                <User className="w-12 h-12 text-white" />
+              <div className="relative group">
+                {profile?.avatarUrl ? (
+                  <img
+                    src={profile.avatarUrl}
+                    alt="Profile"
+                    className="w-24 h-24 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center">
+                    <User className="w-12 h-12 text-white" />
+                  </div>
+                )}
+                
+                {/* Avatar upload overlay */}
+                <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex gap-2">
+                    <label className="cursor-pointer p-2 bg-blue-600 rounded-full hover:bg-blue-700 transition-colors">
+                      <Camera className="w-4 h-4 text-white" />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAvatarUpload}
+                        disabled={uploading}
+                        className="hidden"
+                      />
+                    </label>
+                    {profile?.avatarUrl && (
+                      <button
+                        onClick={handleAvatarDelete}
+                        disabled={uploading}
+                        className="p-2 bg-red-600 rounded-full hover:bg-red-700 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4 text-white" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                
+                {uploading && (
+                  <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center">
+                    <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                )}
               </div>
+              
               <div className="text-center sm:text-left">
                 <h3 className="text-2xl font-bold text-gray-800 mb-2">
-                  {user.user_metadata?.full_name || 'User'}
+                  {profile?.displayName || user.user_metadata?.full_name || 'User'}
                 </h3>
                 <p className="text-gray-600 flex items-center gap-2 justify-center sm:justify-start">
                   <Mail className="w-4 h-4" />
                   {user.email}
                 </p>
+                {profile?.username && (
+                  <p className="text-gray-500 text-sm mt-1">@{profile.username}</p>
+                )}
               </div>
             </div>
 
