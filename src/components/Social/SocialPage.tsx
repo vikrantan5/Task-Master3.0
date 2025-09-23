@@ -1,21 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Users, MessageCircle, Phone, Video } from 'lucide-react';
 import { useProfile } from '../../hooks/useProfile';
-import { socketService } from '../../lib/socket';
-import { createStorageBucket } from '../../lib/supabase';
+import { useWebRTC } from '../../hooks/useWebRTC';
 import UserSearch from './UserSearch';
-import ConnectionRequests from './ConnectionRequests';
+import FriendRequestsManager from './FriendRequestsManager';
 import FriendsList from './FriendsList';
 import ChatWindow from './ChatWindow';
 import VideoCallWindow from './VideoCallWindow';
-import FriendAnalytics from './FriendAnalytics';
-import { useVideoCall } from '../../hooks/useVideoCall';
 
 const SocialPage: React.FC = () => {
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [showVideoCall, setShowVideoCall] = useState(false);
   const { profile, updateOnlineStatus } = useProfile();
-  const { initializeCall } = useVideoCall();
+  const { initializeCall } = useWebRTC();
 
   useEffect(() => {
     // Connect to socket when component mounts
@@ -37,7 +34,12 @@ const SocialPage: React.FC = () => {
 
   const handleStartCall = async (profileId: string, callType: 'audio' | 'video') => {
     setShowVideoCall(true);
-    await initializeCall(profileId, callType);
+    try {
+      await initializeCall(profileId, callType);
+    } catch (error) {
+      console.error('Error starting call:', error);
+      setShowVideoCall(false);
+    }
   };
 
   const handleCloseChat = () => {
@@ -72,24 +74,19 @@ const SocialPage: React.FC = () => {
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-0">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Column - Search & Requests */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left Column - Search & Friend Requests */}
             <div className="space-y-6">
               <UserSearch onStartChat={handleStartChat} />
-              <ConnectionRequests />
+              <FriendRequestsManager />
             </div>
 
-            {/* Middle Column - Friends List */}
+            {/* Right Column - Friends List */}
             <div className="space-y-6">
               <FriendsList 
                 onStartChat={handleStartChat}
                 onStartCall={handleStartCall}
               />
-            </div>
-
-            {/* Right Column - Friend Analytics */}
-            <div className="space-y-6">
-              <FriendAnalytics />
             </div>
           </div>
         </div>

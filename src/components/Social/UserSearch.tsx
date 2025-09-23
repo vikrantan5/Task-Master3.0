@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Search, UserPlus, MessageCircle, Users, Clock } from 'lucide-react';
+import { Search, UserPlus, MessageCircle, Users, Clock, UserCheck } from 'lucide-react';
 import { useProfile, Profile } from '../../hooks/useProfile';
-import { useConnections } from '../../hooks/useConnections';
+import { useFriendRequests } from '../../hooks/useFriendRequests';
 
 interface UserSearchProps {
   onStartChat: (profileId: string) => void;
@@ -13,8 +13,8 @@ const UserSearch: React.FC<UserSearchProps> = ({ onStartChat }) => {
   const [loading, setLoading] = useState(false);
   const [searchType, setSearchType] = useState<'username' | 'display_name'>('username');
   const { searchUsers } = useProfile();
-  const { sendConnectionRequest, checkConnectionStatus } = useConnections();
-  const [connectionStatuses, setConnectionStatuses] = useState<{ [key: string]: string }>({});
+  const { sendFriendRequest, getFriendshipStatus } = useFriendRequests();
+  const [friendshipStatuses, setFriendshipStatuses] = useState<{ [key: string]: string }>({});
 
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
@@ -28,13 +28,13 @@ const UserSearch: React.FC<UserSearchProps> = ({ onStartChat }) => {
       const results = await searchUsers(query, searchType);
       setSearchResults(results);
 
-      // Check connection status for each result
+      // Check friendship status for each result
       const statuses: { [key: string]: string } = {};
       for (const user of results) {
-        const status = await checkConnectionStatus(user.id);
+        const status = await getFriendshipStatus(user.id);
         statuses[user.id] = status;
       }
-      setConnectionStatuses(statuses);
+      setFriendshipStatuses(statuses);
     } catch (error) {
       console.error('Error searching users:', error);
     } finally {
@@ -42,12 +42,12 @@ const UserSearch: React.FC<UserSearchProps> = ({ onStartChat }) => {
     }
   };
 
-  const handleConnect = async (profileId: string) => {
+  const handleSendFriendRequest = async (profileId: string) => {
     try {
-      await sendConnectionRequest(profileId);
-      setConnectionStatuses(prev => ({ ...prev, [profileId]: 'pending' }));
+      await sendFriendRequest(profileId);
+      setFriendshipStatuses(prev => ({ ...prev, [profileId]: 'pending_sent' }));
     } catch (error) {
-      console.error('Error sending connection request:', error);
+      console.error('Error sending friend request:', error);
     }
   };
 
@@ -144,7 +144,7 @@ const UserSearch: React.FC<UserSearchProps> = ({ onStartChat }) => {
             </div>
 
             <div className="flex gap-2">
-              {connectionStatuses[user.id] === 'accepted' ? (
+              {friendshipStatuses[user.id] === 'accepted' ? (
                 <button
                   onClick={() => onStartChat(user.id)}
                   className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
@@ -152,21 +152,29 @@ const UserSearch: React.FC<UserSearchProps> = ({ onStartChat }) => {
                   <MessageCircle className="w-4 h-4" />
                   Chat
                 </button>
-              ) : connectionStatuses[user.id] === 'pending' ? (
+              ) : friendshipStatuses[user.id] === 'pending_sent' ? (
                 <button
                   disabled
                   className="flex items-center gap-2 px-4 py-2 bg-gray-300 text-gray-600 rounded-lg text-sm cursor-not-allowed"
                 >
                   <Clock className="w-4 h-4" />
-                  Pending
+                  Request Sent
+                </button>
+              ) : friendshipStatuses[user.id] === 'pending_received' ? (
+                <button
+                  disabled
+                  className="flex items-center gap-2 px-4 py-2 bg-yellow-300 text-yellow-800 rounded-lg text-sm cursor-not-allowed"
+                >
+                  <UserCheck className="w-4 h-4" />
+                  Pending Response
                 </button>
               ) : (
                 <button
-                  onClick={() => handleConnect(user.id)}
+                  onClick={() => handleSendFriendRequest(user.id)}
                   className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
                 >
                   <UserPlus className="w-4 h-4" />
-                  Connect
+                  Add Friend
                 </button>
               )}
             </div>
